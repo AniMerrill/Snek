@@ -1,9 +1,9 @@
-extends Label
+extends Node
 
 const SCREEN_SIZE := Vector2(80, 36)
 const PLAY_AREA := Vector2(48, 34)
 
-enum State {NEW, PLAY, DEAD}
+enum State {NEW, PLAY, DEAD, PAUSE}
 var cur_state = State.NEW
 
 # SCREEN[y][x]
@@ -48,10 +48,61 @@ const SCREEN := [
 	'X##############################################################################X\n', #35
 ]
 
-var screen := []
+const GAME_OVER := [
+	'################################################', #0
+	'#                                              #', #1
+	'#    - - - G  A  M  E    O  V  E  R ! - - -    #', #2
+	'#                                              #', #3
+	'#        N E W  H I G H  S C O R E ! ! !       #', #4
+	'#                                              #', #5
+	'#         PRESS SPACE TO PLAY AGAIN...         #', #6
+	'#                                              #', #7
+	'################################################'  #8
+]
+
+const TITLE_SCREEN := [
+	'                                                ',
+	'                                                ', #1
+	'                                                ', #2
+	'                                                ', #3
+	'  ============================================  ', #4
+	'  ============================================  ', #5
+	'                                                ', #6
+	'      -----                                     ', #7
+	'     |  _  |                     -         --   ', #8
+	'     |]| |o|                    | |       |  |  ', #9
+	'     |]|  -~~<                  | |       |  |  ', #10
+	'     |]|___    -----    -----   | |       |  |  ', #11
+	'     |___  |  |     |  |     |  | |  -    |  |  ', #12
+	'   ^     |]|  |     |  |  [] |  | | | |    --   ', #13
+	'   ^     |]|  |  -  |  | ----   | |_|-          ', #14
+	'  |[|    |]|  | | | |  | |_ _   |  _ -     --   ', #15
+	'  |[|____|]|  | | | |  |     |  | | | |   |  |  ', #16
+	'  |        |   -   -    -----    -   -     --   ', #17
+	'   --------   ================================  ', #18
+	'  ============================================  ', #19
+	'  ============================================  ', #20
+	'  ============================================  ', #21
+	'                                                ', #22
+	'                                                ', #23
+	'                                                ', #24
+	'                                                ', #25
+	'                                                ', #26
+	'                                                ', #27
+	'                                                ', #28
+	'                                                ', #29
+	'                                                ', #30
+	'              PRESS SPACE TO PLAY!              ', #31
+	'                                                ', #32
+	'                                                ', #33
+]
+
+var cur_screen := []
 
 export var INIT_SNAKE := [Vector2(5, 5), Vector2(4, 5), Vector2(3, 5)]
 export var INIT_SPEED := 1
+
+var label : Label = Label.new()
 
 onready var speed := INIT_SPEED
 var timer := 0.0
@@ -61,7 +112,8 @@ var snake_dir := 'right'
 
 var food := Vector2(1, 1)
 
-var highscore : int = 0
+var highscore : int = 100 #3600
+var prev_highscore : int = 0
 var score : int = 0
 
 var up = false
@@ -74,26 +126,31 @@ func _ready():
 	# Useful to check and make sure the play area is correct
 	for y in range(PLAY_AREA.y):
 		for x in range(PLAY_AREA.x):
-			screen[y + 1][x + 1] = '*'
+			cur_screen[y + 1][x + 1] = '*'
 	
 	set_process(false)
 	"""
 	
-	clear_screen()
-	
-	draw_score('high')
-	draw_score()
-	
-	print_screen()
-	
-	pass
+	init_new()
 
 func _process(delta):
 	match cur_state:
-		State.NEW, State. DEAD:
+		State.NEW, State.DEAD:
 			if Input.is_action_pressed("ui_accept"):
 				cur_state = State.PLAY
 				init_play()
+			
+			clear_cur_screen()
+			
+			draw_score('high')
+			draw_score()
+			
+			if cur_state == State.NEW:
+				draw_title_screen()
+			if cur_state == State.DEAD:
+				draw_game_over()
+			
+			print_cur_screen()
 		State.PLAY:
 			get_input()
 			
@@ -104,13 +161,13 @@ func _process(delta):
 				
 				move_snake()
 				
-				clear_screen()
+				clear_cur_screen()
 				draw_snake()
 				draw_food()
 				draw_score('high')
 				draw_score()
 				
-				print_screen()
+				print_cur_screen()
 
 func get_input():
 	up = Input.is_action_pressed('ui_up')
@@ -130,11 +187,51 @@ func draw_score(score_type = '', score_clear = false):
 		score_string = '                         '
 	
 	for i in score_string.length():
-		screen[y][74 - score_string.length() + i + 1] = score_string[i]
+		cur_screen[y][74 - score_string.length() + i + 1] = score_string[i]
+
+func save_highscore():
+	var f = File.new()
+	f.open('user://highscore.save', File.WRITE)
+	f.store_line(to_json({'highscore':highscore}))
+	f.close()
+
+func load_highscore():
+	var f = File.new()
+	
+	if not f.file_exists('user://highscore.save'):
+		return
+	
+	f.open('user://highscore.save', File.READ)
+	highscore = parse_json(f.get_line())['highscore']
+	f.close()
+
+#===NEW FUNCTIONS=============================================#
+func init_new():
+	label.rect_size = Vector2(640, 360)
+	
+	var snek_font = DynamicFont.new()
+	snek_font.font_data = preload('res://UbuntuMono-R.ttf')
+	snek_font.extra_spacing_top = -4
+	snek_font.extra_spacing_bottom = -6
+	
+	label.add_font_override('font', snek_font)
+	
+	add_child(label)
+	
+	load_highscore()
+	
+	clear_cur_screen()
+	
+	draw_score('high')
+	draw_score()
+	
+	print_cur_screen()
 
 #===PLAY FUNCTIONS============================================#
 func init_play():
-	clear_screen()
+	prev_highscore = highscore
+	
+	clear_cur_screen()
 	
 	spawn_snake()
 	draw_snake()
@@ -145,19 +242,19 @@ func init_play():
 	draw_score('high')
 	draw_score()
 	
-	print_screen()
+	print_cur_screen()
 
-func clear_screen():
-	screen = []
+func clear_cur_screen():
+	cur_screen = []
 	
 	for y in (SCREEN.size()):
-		screen.append(SCREEN[y])
+		cur_screen.append(SCREEN[y])
 
-func print_screen():
-	text = ''
+func print_cur_screen():
+	label.text = ''
 	
-	for line in screen:
-		text += line
+	for line in cur_screen:
+		label.text += line
 
 func spawn_snake():
 	snake = []
@@ -183,10 +280,10 @@ func draw_snake():
 				'left':
 					snake_char = '>'
 			
-			screen[snake[0].y + 1][snake[0].x + 1] = snake_char
+			cur_screen[snake[0].y + 1][snake[0].x + 1] = snake_char
 		else:
 			if snake[i] != Vector2(-1, -1):
-				screen[snake[i].y + 1][snake[i].x + 1] = '+'
+				cur_screen[snake[i].y + 1][snake[i].x + 1] = '+'
 
 func spawn_food():
 	randomize()
@@ -197,7 +294,7 @@ func spawn_food():
 			spawn_food()
 
 func draw_food():
-	screen[food.y + 1][food.x + 1] = 'O'
+	cur_screen[food.y + 1][food.x + 1] = 'O'
 
 func move_snake():
 	match snake_dir:
@@ -228,10 +325,13 @@ func move_snake():
 				'right':
 					snake[0].x += 1
 			
-			match screen[snake[0].y + 1][snake[0].x +1]:
+			match cur_screen[snake[0].y + 1][snake[0].x +1]:
 				'#', '+':
-					print('ded')
 					cur_state = State.DEAD
+					
+					if prev_highscore < score:
+						highscore = score
+						save_highscore()
 				'O':
 					score += 100
 					
@@ -249,3 +349,16 @@ func move_snake():
 			prev_body = snake[i]
 			
 			snake[i] = new_body
+
+func draw_game_over():
+	for y in GAME_OVER.size():
+		for x in GAME_OVER[y].length():
+			if y == 4 and prev_highscore >= score:
+				cur_screen[y + 14][x + 1]  = GAME_OVER[y - 1][x]
+			else:
+				cur_screen[y + 14][x + 1] = GAME_OVER[y][x]
+
+func draw_title_screen():
+	for y in TITLE_SCREEN.size():
+		for x in TITLE_SCREEN[y].length():
+			cur_screen[y + 1][x + 1] = TITLE_SCREEN[y][x]
