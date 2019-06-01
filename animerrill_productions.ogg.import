@@ -1,0 +1,15 @@
+[remap]
+
+importer="ogg_vorbis"
+type="AudioStreamOGGVorbis"
+path="res://.import/animerrill_productions.ogg-a4612e2e0fe2be202ad6ef951ac105c1.oggstr"
+
+[deps]
+
+source_file="res://animerrill_productions.ogg"
+dest_files=[ "res://.import/animerrill_productions.ogg-a4612e2e0fe2be202ad6ef951ac105c1.oggstr" ]
+
+[params]
+
+loop=true
+loop_offset=0

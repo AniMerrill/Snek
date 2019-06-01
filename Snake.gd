@@ -3,7 +3,7 @@ extends Node
 const SCREEN_SIZE := Vector2(80, 36)
 const PLAY_AREA := Vector2(48, 34)
 
-enum State {NEW, PLAY, DEAD, PAUSE}
+enum State {NEW, PLAY, DEAD, PAUSE, SPLASH}
 var cur_state = State.NEW
 
 # SCREEN[y][x]
@@ -46,6 +46,18 @@ const SCREEN := [
 	'#                                                #                             #\n', #33
 	'#                                                #                             #\n', #34
 	'X##############################################################################X\n', #35
+]
+
+const PAUSE_SCREEN := [
+	'################################################', #0
+	'#            **********************            #', #1
+	'#        ******************************        #', #2
+	'#    **************************************    #', #3
+	'#  ********  P  A  U  S  E  D  !  !  ********  #', #4
+	'#    **************************************    #', #5
+	'#        ******************************        #', #6
+	'#            **********************            #', #7
+	'################################################'  #8
 ]
 
 const GAME_OVER := [
@@ -97,22 +109,65 @@ const TITLE_SCREEN := [
 	'                                                ', #33
 ]
 
-var cur_screen := []
+const SPLASH_SCREEN := [
+	'                                                ',
+	'                A N I M E R R I L L             ', #1
+	'                                                ', #2
+	'               P R O D U C T I O N S            ', #3
+	'                                                ', #4
+	'                                                ', #5
+	'                        #                       ', #6
+	'                       #^#                      ', #7
+	'                     #/  |#               ####  ', #8
+	'                    #-    -#            ####    ', #9
+	'                ####|      |######    ########  ', #10
+	'              # --- |   |   -  ---# ######      ', #11
+	'              #|    |   |    |    | ####        ', #12
+	'              #|    --------------- ##          ', #13
+	'             #------##########-    -#           ', #14
+	'            #-    -####----####-    -#          ', #15
+	'           #/    -###-  --  -###-    -#         ', #16
+	'          #<    |###|  (##)  |###|--  >#        ', #17
+	'           #- --|####-  --  -####|   /#         ', #18
+	'            #-   -#####----#### -   -#          ', #19
+	'             #-   -############-----#           ', #20
+	'            ## ---------------    |#            ', #21
+	'          #####|    |    |   |    |#            ', #22
+	'        ###### #---  -   |   | --- #            ', #23
+	'  ##########    ######|      |#####             ', #24
+	'    ######            #-    -#                  ', #25
+	'  ######               #|  /#                   ', #26
+	'                        #v#                     ', #27
+	'                         #                      ', #28
+	'                                                ', #29
+	'             http://www.animerrill.com          ', #30
+	'                                                ', #31
+	'                                                ', #32
+	'                                                ', #33
+]
 
 export var INIT_SNAKE := [Vector2(5, 5), Vector2(4, 5), Vector2(3, 5)]
 export var INIT_SPEED := 1
 
-var label : Label = Label.new()
+onready var get_wav : AudioStreamSample = preload('res://get.wav')
+onready var splash_ogg : AudioStreamOGGVorbis = preload('res://animerrill_productions.ogg')
+onready var game_over_ogg : AudioStreamOGGVorbis = preload('res://game_over.ogg')
 
 onready var speed := INIT_SPEED
-var timer := 0.0
+
+var label : Label = Label.new()
+var audio : AudioStreamPlayer = AudioStreamPlayer.new()
+
+var cur_screen := []
 
 var snake := []
 var snake_dir := 'right'
 
 var food := Vector2(1, 1)
 
-var highscore : int = 100 #3600
+var timer := 0.0
+
+var highscore : int = 5700
 var prev_highscore : int = 0
 var score : int = 0
 
@@ -134,9 +189,31 @@ func _ready():
 	init_new()
 
 func _process(delta):
+	var space = Input.is_action_just_pressed("ui_accept")
+	
+	if Input.is_action_pressed('_'):
+		foo()
+		return
+	
+	if Input.is_action_just_pressed("fullscreen"):
+		OS.window_fullscreen = !OS.window_fullscreen
+	
 	match cur_state:
+		State.SPLASH:
+			if not audio.playing:
+				cur_state = State.NEW
+			
+			clear_cur_screen()
+			
+			draw_score('high')
+			draw_score()
+			
+			draw_splash_screen()
+			
+			print_cur_screen()
 		State.NEW, State.DEAD:
-			if Input.is_action_pressed("ui_accept"):
+			if space:
+				space = false
 				cur_state = State.PLAY
 				init_play()
 			
@@ -152,22 +229,41 @@ func _process(delta):
 			
 			print_cur_screen()
 		State.PLAY:
-			get_input()
+			if space:
+				space = false
+				cur_state = State.PAUSE
+			else:
+				get_input()
+				
+				timer += delta * speed
+				
+				if timer >= 1.0:
+					timer = 0
+					
+					move_snake()
+					
+					clear_cur_screen()
+					draw_snake()
+					draw_food()
+					draw_score('high')
+					draw_score()
+					
+					print_cur_screen()
+		State.PAUSE:
+			if space:
+				space = false
+				cur_state = State.PLAY
 			
-			timer += delta * speed
+			clear_cur_screen()
 			
-			if timer >= 1.0:
-				timer = 0
-				
-				move_snake()
-				
-				clear_cur_screen()
-				draw_snake()
-				draw_food()
-				draw_score('high')
-				draw_score()
-				
-				print_cur_screen()
+			draw_snake()
+			draw_food()
+			draw_score('high')
+			draw_score()
+			
+			draw_pause_screen()
+			
+			print_cur_screen()
 
 func get_input():
 	up = Input.is_action_pressed('ui_up')
@@ -218,6 +314,8 @@ func init_new():
 	
 	add_child(label)
 	
+	add_child(audio)
+	
 	load_highscore()
 	
 	clear_cur_screen()
@@ -226,6 +324,14 @@ func init_new():
 	draw_score()
 	
 	print_cur_screen()
+	
+	splash_ogg.loop = false
+	game_over_ogg.loop = false
+	
+	audio.stream = splash_ogg
+	audio.play()
+	
+	cur_state = State.SPLASH
 
 #===PLAY FUNCTIONS============================================#
 func init_play():
@@ -332,6 +438,9 @@ func move_snake():
 					if prev_highscore < score:
 						highscore = score
 						save_highscore()
+					
+					audio.stream = game_over_ogg
+					audio.play()
 				'O':
 					score += 100
 					
@@ -340,10 +449,12 @@ func move_snake():
 					
 					if score % 500 == 0:
 						speed += 1
-						print('speed: ', speed)
 					
 					snake.append(Vector2(-1, -1))
 					spawn_food()
+					
+					audio.stream = get_wav
+					audio.play()
 		else:
 			var new_body = prev_body
 			prev_body = snake[i]
@@ -358,7 +469,99 @@ func draw_game_over():
 			else:
 				cur_screen[y + 14][x + 1] = GAME_OVER[y][x]
 
+func draw_pause_screen():
+	for y in PAUSE_SCREEN.size():
+		for x in PAUSE_SCREEN[y].length():
+			cur_screen[y + 14][x + 1] = PAUSE_SCREEN[y][x]
+
 func draw_title_screen():
 	for y in TITLE_SCREEN.size():
 		for x in TITLE_SCREEN[y].length():
 			cur_screen[y + 1][x + 1] = TITLE_SCREEN[y][x]
+
+func draw_splash_screen():
+	for y in SPLASH_SCREEN.size():
+		for x in SPLASH_SCREEN[y].length():
+			cur_screen[y + 1][x + 1] = SPLASH_SCREEN[y][x]
+
+func foo():
+	clear_cur_screen()
+	
+	draw_score('high')
+	draw_score()
+	
+	for y in SECRET.size():
+		for x in SECRET[y].length():
+			cur_screen[y + 1][x + 1] = SECRET[y][x]
+	
+	print_cur_screen()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const SECRET := [
+	'                   ___________                  ',
+	'                  (           )                 ', #1
+	'                   -----------                  ', #2
+	'                     --------                   ', #3
+	'                    |  _____ |                  ', #4
+	'                   |  |_______|                 ', #5
+	'                  -| | o ||| o |                ', #6
+	'                 | |    .    .                  ', #7
+	'                  -|   | ____ |                 ', #8
+	'                   |   |      |                 ', #9
+	'          ---------     ------ ---              ', #10
+	'         |                        |             ', #11
+	'        |                          |            ', #12
+	'       |         #############|     |           ', #13
+	'      |     ________ ####### | |     |          ', #14
+	'      |             | ###### |  |     |         ', #15
+	'       _______      | ###### |   |     |        ', #16
+	'      |      |      | ###### |    |    |        ', #17
+	'      |       ------ ####### |    |    |        ', #18
+	'      |          | #######  /     |    |        ', #19
+	'      |          | ####    |      |     |       ', #20
+	'      |          |          ______|     |       ', #21
+	'      |          |      /         |     |       ', #22
+	'      |          |     /          |     |       ', #23
+	'      |   _____  |               | ------       ', #24
+	'     |            |--------------               ', #25
+	'      ------------                              ', #26
+	'                                                ', #27
+	'            * * * * * **** * * * * *            ', #29
+	'          * *                      * *          ', #28
+	'      * * * * R.I.P. H A R A M B E * * * *      ', #30
+	'          * *                      * *          ', #33
+	'            * * * * * **** * * * * *            ', #31
+	'                                                ', #32
+]
